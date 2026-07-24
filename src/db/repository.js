@@ -276,6 +276,17 @@ async function getRewardsSummary() {
   return row || { distributed: 0, holdersPaid: 0, drops: 0 };
 }
 
+// Total launched-token ($COP) burned across all cycles — the "Total $COP Burned"
+// figure on the site's Doctrine tablet.
+async function getTotalBurned() {
+  const db = getDb();
+  const [row] = await db
+    .collection('cycles')
+    .aggregate([{ $group: { _id: null, burned: { $sum: { $ifNull: ['$tokens_burned', 0] } } } }])
+    .toArray();
+  return row ? row.burned : 0;
+}
+
 // Recent successful airdrop payouts, newest first, for the public rewards feed.
 // Only rows that actually landed (have a tx signature) are returned.
 async function getRewardsFeed(limit) {
@@ -303,4 +314,5 @@ module.exports = {
   getAirdropTotals,
   getRewardsSummary,
   getRewardsFeed,
+  getTotalBurned,
 };

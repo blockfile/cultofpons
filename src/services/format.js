@@ -221,6 +221,7 @@ function toRewardsPayload({
   distributingMs,
   market = {},
   summary = {},
+  burned = 0,
   feed = [],
 }) {
   return {
@@ -232,6 +233,7 @@ function toRewardsPayload({
     totals: {
       marketCap: compactUsd(market.marketCap ?? null),
       distributed: intComma(summary.distributed || 0),
+      burned: intComma(burned || 0), // total $COP burned — Doctrine tablet only
       holdersPaid: intComma(summary.holdersPaid || 0),
       drops: intComma(summary.drops || 0),
     },

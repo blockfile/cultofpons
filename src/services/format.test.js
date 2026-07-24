@@ -152,6 +152,7 @@ test('toRewardsPayload builds the vigil feed shape', () => {
     distributingMs: 9000,
     market: { marketCap: 4_280_000 },
     summary: { distributed: 48920441, holdersPaid: 1284, drops: 607 },
+    burned: 12_500_000,
     feed: [{ id: 2, recipient: '0xB', amount_ui: 9117.2, signature: '0xt', created_at: '2026-07-25T00:00:00Z' }],
   });
   assert.strictEqual(out.rewardSymbol, 'PONS');
@@ -162,6 +163,7 @@ test('toRewardsPayload builds the vigil feed shape', () => {
   assert.deepStrictEqual(out.totals, {
     marketCap: '$4.28M',
     distributed: '48,920,441',
+    burned: '12,500,000',
     holdersPaid: '1,284',
     drops: '607',
   });

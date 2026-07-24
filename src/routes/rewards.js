@@ -38,10 +38,11 @@ function cached(ttlMs, fn) {
 }
 
 const loadRewards = cached(3000, async () => {
-  const [summary, feed, market] = await Promise.all([
+  const [summary, feed, market, burned] = await Promise.all([
     repo.getRewardsSummary(),
     repo.getRewardsFeed(300), // a few hundred rows; the client pages the rest
     getMarketData().catch(() => ({ marketCap: null })),
+    repo.getTotalBurned(),
   ]);
   const { nextAirdropAt, intervalSec } = nextRun(config.pollSchedule, Date.now());
   return toRewardsPayload({
@@ -52,6 +53,7 @@ const loadRewards = cached(3000, async () => {
     distributingMs: config.rewardsDistributingMs,
     market,
     summary,
+    burned,
     feed,
   });
 });

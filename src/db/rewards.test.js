@@ -33,11 +33,20 @@ test('rewards summary + feed aggregate airdrop payouts', async () => {
     assert.strictEqual(feed.length, 4); // failed row excluded
     assert.strictEqual(feed[0].recipient, '0xC'); // newest first (last inserted ok row)
 
+    // Total $COP burned comes from the cycles, across two burn cycles.
+    const c1 = await repo.createCycle({ dryRun: true });
+    await repo.finishCycle(c1, { status: 'complete', tokens_burned: 12_000_000 });
+    const c2 = await repo.createCycle({ dryRun: true });
+    await repo.finishCycle(c2, { status: 'complete', tokens_burned: 500_000 });
+    assert.strictEqual(await repo.getTotalBurned(), 12_500_000);
+
     // The two rows from a disperse batch share a tx but get distinct ids.
-    const payload = toRewardsPayload({ symbol: 'PONS', intervalSec: 300, nextDropAt: 1, explorerTxUrl: 'x/', distributingMs: 9000, market: { marketCap: null }, summary, feed });
+    const burned = await repo.getTotalBurned();
+    const payload = toRewardsPayload({ symbol: 'PONS', intervalSec: 300, nextDropAt: 1, explorerTxUrl: 'x/', distributingMs: 9000, market: { marketCap: null }, summary, burned, feed });
     assert.strictEqual(payload.totals.distributed, '650');
     assert.strictEqual(payload.totals.holdersPaid, '3');
     assert.strictEqual(payload.totals.drops, '2');
+    assert.strictEqual(payload.totals.burned, '12,500,000');
     assert.strictEqual(payload.totals.marketCap, '—'); // not listed → em dash
     const ids = new Set(payload.drops.map((d) => d.id));
     assert.strictEqual(ids.size, payload.drops.length, 'every drop has a unique id even across a shared tx');
