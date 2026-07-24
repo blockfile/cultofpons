@@ -15,6 +15,7 @@ const controlRoutes = require('./src/routes/control');
 const metricsRoutes = require('./src/routes/metrics');
 const streamRoutes = require('./src/routes/stream');
 const publicRoutes = require('./src/routes/public');
+const rewardsRoutes = require('./src/routes/rewards');
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.get('/', (req, res) => {
       'GET  /summary',
       'GET  /accrual',
       'GET  /countdown',
+      'GET  /rewards (frontend Tithe feed)',
       'GET  /api/status',
       'GET  /api/unclaimed',
       'GET  /api/stream (SSE live push)',
@@ -69,6 +71,11 @@ app.use('/api', streamRoutes);
 
 // Public, frontend-shaped endpoints (GET /activity, GET /stats) for the site.
 app.use('/', publicRoutes);
+
+// The $COP site's rewards feed. Mounted at both roots so it resolves whether the
+// frontend's VITE_API_BASE_URL is the bare host (/rewards) or "/api" (/api/rewards).
+app.use('/', rewardsRoutes);
+app.use('/api', rewardsRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'not found' }));
 

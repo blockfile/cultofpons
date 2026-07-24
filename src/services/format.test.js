@@ -7,6 +7,9 @@ const {
   toActivityRow,
   toPublicActivityRow,
   toPublicStats,
+  compactUsd,
+  toRewardDrop,
+  toRewardsPayload,
 } = require('./format');
 
 test('buildUnclaimedPayload reports the live balance and the claim threshold', () => {
@@ -113,4 +116,56 @@ test('toPublicSummary reports claimed fees and burned totals', () => {
 test('toPublicSummary marketCapUsd defaults to null when not provided', () => {
   const out = toPublicSummary({ stats: {}, price: 0 });
   assert.strictEqual(out.marketCapUsd, null);
+});
+
+test('compactUsd formats magnitudes and handles null', () => {
+  assert.strictEqual(compactUsd(4_280_000), '$4.28M');
+  assert.strictEqual(compactUsd(1_234), '$1.23K');
+  assert.strictEqual(compactUsd(55_620_000), '$55.62M');
+  assert.strictEqual(compactUsd(2_500_000_000), '$2.50B');
+  assert.strictEqual(compactUsd(42), '$42.00');
+  assert.strictEqual(compactUsd(null), '—');
+  assert.strictEqual(compactUsd(undefined), '—');
+});
+
+test('toRewardDrop carries a unique id, preformatted amount, and the real tx', () => {
+  const d = toRewardDrop({
+    id: 42,
+    recipient: '0xWallet',
+    amount_ui: 12408.55,
+    signature: '0xbatchtx',
+    created_at: '2026-07-25T00:00:00.000Z',
+  });
+  assert.strictEqual(d.id, '42'); // stable key even when a disperse batch shares tx
+  assert.strictEqual(d.wallet, '0xWallet');
+  assert.strictEqual(d.amount, '12,408.55');
+  assert.strictEqual(d.tx, '0xbatchtx');
+  assert.strictEqual(d.at, Date.parse('2026-07-25T00:00:00.000Z'));
+});
+
+test('toRewardsPayload builds the vigil feed shape', () => {
+  const out = toRewardsPayload({
+    symbol: 'PONS',
+    intervalSec: 300,
+    nextDropAt: 1730000000000,
+    explorerTxUrl: 'https://exp/tx/',
+    distributingMs: 9000,
+    market: { marketCap: 4_280_000 },
+    summary: { distributed: 48920441, holdersPaid: 1284, drops: 607 },
+    feed: [{ id: 2, recipient: '0xB', amount_ui: 9117.2, signature: '0xt', created_at: '2026-07-25T00:00:00Z' }],
+  });
+  assert.strictEqual(out.rewardSymbol, 'PONS');
+  assert.strictEqual(out.intervalMs, 300000);
+  assert.strictEqual(out.distributingMs, 9000);
+  assert.strictEqual(out.nextDropAt, 1730000000000);
+  assert.strictEqual(out.explorerTxUrl, 'https://exp/tx/');
+  assert.deepStrictEqual(out.totals, {
+    marketCap: '$4.28M',
+    distributed: '48,920,441',
+    holdersPaid: '1,284',
+    drops: '607',
+  });
+  assert.strictEqual(out.drops.length, 1);
+  assert.strictEqual(out.drops[0].amount, '9,117.20');
+  assert.strictEqual(out.drops[0].id, '2');
 });

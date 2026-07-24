@@ -145,6 +145,10 @@ const config = {
   // DexScreener chain slug for /stats market data (graceful nulls until listed).
   dexscreenerChainId: process.env.DEXSCREENER_CHAIN_ID || 'robinhood',
 
+  // Frontend rewards feed (GET /rewards): how long the UI shows the "distributing"
+  // state after each drop fires (display only — matches the site's candle animation).
+  rewardsDistributingMs: num(process.env.REWARDS_DISTRIBUTING_MS, 9000),
+
   // Storage (MongoDB)
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017',
   mongoDb: process.env.MONGODB_DB || 'bop',

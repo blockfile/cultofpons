@@ -245,6 +245,49 @@ async function getAirdropTotals() {
   return byToken;
 }
 
+// Headline totals for the public rewards feed (GET /rewards): total reward tokens
+// distributed, distinct wallets paid, and the number of distribution ROUNDS
+// (distinct cycles that airdropped — one candle "drop" each), across all
+// successful airdrops.
+async function getRewardsSummary() {
+  const db = getDb();
+  const [row] = await db
+    .collection('airdrops')
+    .aggregate([
+      { $match: { status: 'ok' } },
+      {
+        $group: {
+          _id: null,
+          distributed: { $sum: { $ifNull: ['$amount_ui', 0] } },
+          recipients: { $addToSet: '$recipient' },
+          rounds: { $addToSet: '$cycle_id' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          distributed: 1,
+          holdersPaid: { $size: '$recipients' },
+          drops: { $size: '$rounds' },
+        },
+      },
+    ])
+    .toArray();
+  return row || { distributed: 0, holdersPaid: 0, drops: 0 };
+}
+
+// Recent successful airdrop payouts, newest first, for the public rewards feed.
+// Only rows that actually landed (have a tx signature) are returned.
+async function getRewardsFeed(limit) {
+  const db = getDb();
+  return db
+    .collection('airdrops')
+    .find({ status: 'ok', signature: { $ne: null } }, NO_ID)
+    .sort({ id: -1 })
+    .limit(limit)
+    .toArray();
+}
+
 module.exports = {
   createCycle,
   finishCycle,
@@ -258,4 +301,6 @@ module.exports = {
   addAirdrop,
   getAirdrops,
   getAirdropTotals,
+  getRewardsSummary,
+  getRewardsFeed,
 };

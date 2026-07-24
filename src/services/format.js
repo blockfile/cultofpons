@@ -179,11 +179,74 @@ function toPublicSummary({ stats, price, marketCapUsd = null, airdropTotals = {}
   };
 }
 
+// ── Public rewards feed (GET /rewards, for the $COP site's "Tithe") ──────────
+
+// Compact USD display string, e.g. 4_280_000 → "$4.28M". Null/NaN → "—".
+function compactUsd(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  const sign = v < 0 ? '-' : '';
+  const a = Math.abs(v);
+  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(2)}K`;
+  return `${sign}$${a.toFixed(2)}`;
+}
+
+const intComma = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
+const money2 = (n) =>
+  (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// One airdrop DB row → one rewards-feed "drop". Carries a unique `id` (the
+// airdrop row id) IN ADDITION to `tx`: with the disperse contract a whole batch
+// of recipients shares ONE tx hash, so the frontend must key/dedupe on `id`, not
+// `tx` (tx stays the real, explorer-linkable hash).
+function toRewardDrop(a) {
+  return {
+    id: a.id != null ? String(a.id) : a.signature ?? null,
+    wallet: a.recipient,
+    amount: money2(a.amount_ui),
+    at: Date.parse(a.created_at) || null, // epoch ms
+    tx: a.signature ?? null,
+  };
+}
+
+// Build the GET /rewards payload the frontend's vigil feed expects. All display
+// numbers are preformatted strings; drops are newest-first.
+function toRewardsPayload({
+  symbol,
+  intervalSec,
+  nextDropAt,
+  explorerTxUrl,
+  distributingMs,
+  market = {},
+  summary = {},
+  feed = [],
+}) {
+  return {
+    rewardSymbol: symbol,
+    intervalMs: (Number(intervalSec) || 0) * 1000,
+    distributingMs,
+    nextDropAt,
+    explorerTxUrl,
+    totals: {
+      marketCap: compactUsd(market.marketCap ?? null),
+      distributed: intComma(summary.distributed || 0),
+      holdersPaid: intComma(summary.holdersPaid || 0),
+      drops: intComma(summary.drops || 0),
+    },
+    drops: feed.map(toRewardDrop),
+  };
+}
+
 module.exports = {
   toActivityRow,
   toPublicActivityRow,
   toPublicStats,
   toPublicSummary,
   buildUnclaimedPayload,
+  compactUsd,
+  toRewardDrop,
+  toRewardsPayload,
   TOKEN_SYMBOL,
 };
