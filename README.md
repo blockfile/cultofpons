@@ -2,12 +2,12 @@
 
 **Claim → burn → buyback + airdrop bot for ponsfamily.com tokens on Robinhood Chain (EVM).**
 
-Once the creator fees reach 0.01 WETH, claim them from the Pons locker, burn the
-claimed tokens, then spend most of the claimed WETH buying a reward token and
-airdrop it to holders:
+Every 5 minutes, claim the creator fees from the Pons locker, burn the claimed
+tokens, then spend most of the claimed WETH buying a reward token and airdrop it
+to holders:
 
 ```
-every POLL_SCHEDULE (default */5), once pending fees ≥ CLAIM_TRIGGER_ETH (default 0.01 WETH):
+every POLL_SCHEDULE (default */5 — a claim every 5 min), on whatever fees have accrued:
   claim the creator fees from the PonsLaunchLocker   (arrive as WETH + the token)
     → BURN the wallet's ENTIRE token balance: the claimed token fees
       + any residue                        (send to 0x…dEaD — gone forever)
@@ -17,8 +17,10 @@ every POLL_SCHEDULE (default */5), once pending fees ≥ CLAIM_TRIGGER_ETH (defa
     → the remaining WETH (dev cut) stays with the wallet
 ```
 
-While the pending fees are below the trigger, the cycle is skipped and retried
-on the following tick, so fees simply accumulate until a claim is worth the gas.
+By default (`TRIGGER_MODE=interval`) every tick claims whatever has accrued, so
+you get a claim every 5 minutes. Set `TRIGGER_MODE=accumulation` to instead wait
+until the pending fees reach `CLAIM_TRIGGER_ETH` (so a tiny claim doesn't cost
+more gas than it earns) — then the cycle is skipped until a claim is worth it.
 The buyback + airdrop is best-effort: if there are no eligible holders or the
 buy can't fill, that leg is skipped and the WETH waits for the next cycle — the
 claim and burn still stand.
@@ -91,8 +93,9 @@ collection, so partial failures are visible and retriable.
 
 | Env | Default | Meaning |
 |---|---|---|
-| `CLAIM_TRIGGER_ETH` | `0.01` | claim once this much creator WETH is pending in the locker |
+| `TRIGGER_MODE` | `interval` | `interval` = claim every tick on whatever accrued; `accumulation` = wait for `CLAIM_TRIGGER_ETH` |
 | `POLL_SCHEDULE` | `*/5 * * * *` | how often the scheduler ticks (every 5 min) |
+| `CLAIM_TRIGGER_ETH` | `0.01` | **accumulation mode only** — claim once this much creator WETH is pending |
 | `DEAD_ADDRESS` | `0x…dEaD` | burn sink for the claimed tokens |
 | `GAS_RESERVE_ETH` | `0.005` | native ETH floor for gas (auto topped-up from claimed WETH) |
 | `LOCKER_ADDRESS` | *(auto)* | override for the PonsLaunchLocker; blank = read it off the token's launch factory |

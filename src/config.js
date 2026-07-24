@@ -26,6 +26,19 @@ if (rewardBuyPct < 0 || rewardBuyPct > 100) {
 }
 const devPct = +(100 - rewardBuyPct).toFixed(6);
 
+// ── Trigger mode ─────────────────────────────────────────────────────────────
+// 'interval'     → every POLL_SCHEDULE tick, claim whatever creator fees have
+//                  accrued (skip only when nothing is pending). Default: a claim
+//                  every 5 minutes.
+// 'accumulation' → wait until the pending creator WETH reaches CLAIM_TRIGGER_ETH
+//                  before claiming, so a tiny claim doesn't cost more gas than it
+//                  earns.
+const triggerMode = ['interval', 'accumulation'].includes(
+  String(process.env.TRIGGER_MODE || 'interval').toLowerCase()
+)
+  ? String(process.env.TRIGGER_MODE || 'interval').toLowerCase()
+  : 'interval';
+
 /**
  * Load the signing wallet (0x-prefixed hex private key). It MUST be the wallet
  * that DEPLOYED the token on ponsfamily.com — the locker only lets the token's
@@ -118,9 +131,11 @@ const config = {
   // Burn sink for the claimed tokens. Default is the canonical EVM dead address.
   deadAddress: lowerOrNull(process.env.DEAD_ADDRESS) || '0x000000000000000000000000000000000000dead',
 
-  // Trigger — the scheduler ticks on this timer (default every 5 minutes) and
-  // runs a claim → burn cycle when the pending creator WETH reaches
-  // CLAIM_TRIGGER_ETH; otherwise it waits for more fees to accrue.
+  // Trigger — the scheduler ticks on this timer (default every 5 minutes). In
+  // 'interval' mode (default) every tick claims whatever has accrued; in
+  // 'accumulation' mode a tick only fires once the pending creator WETH reaches
+  // CLAIM_TRIGGER_ETH.
+  triggerMode,
   pollSchedule: process.env.POLL_SCHEDULE || '*/5 * * * *',
   // DRY_RUN only: simulated creator fees accrued per tick, so cycles have
   // something to claim without real rewards.

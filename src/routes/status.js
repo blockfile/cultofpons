@@ -74,6 +74,7 @@ router.get('/status', async (req, res, next) => {
       // Claim → burn → buyback loop parameters.
       config: {
         pollSchedule: config.pollSchedule,
+        triggerMode: config.triggerMode,
         claimTriggerEth: config.claimTriggerEth,
         deadAddress: config.deadAddress,
         rewardBuyPct: config.rewardBuyPct,

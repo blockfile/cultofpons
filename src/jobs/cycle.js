@@ -124,19 +124,25 @@ async function runCycle() {
   try {
     if (!config.tokenAddress) throw new Error('TOKEN_ADDRESS is required');
 
-    // 1. Check the trigger: the creator WETH pending in the locker must have
-    //    reached CLAIM_TRIGGER_ETH before a claim is worth sending.
+    // 1. Gate the cycle. In 'interval' mode (default) claim whatever has accrued
+    //    each tick — skip only when nothing is pending. In 'accumulation' mode
+    //    the pending creator WETH must reach CLAIM_TRIGGER_ETH first.
     const pending = await getPendingCreatorFees();
-    if (pending.weth < config.claimTriggerEth) {
+    const belowTrigger =
+      config.triggerMode === 'accumulation'
+        ? pending.weth < config.claimTriggerEth
+        : pending.weth <= 0;
+    if (belowTrigger) {
       const authNote =
         !config.dryRun && !pending.authorized && pending.error
           ? ` (claim probe reverted: ${pending.error} — is this wallet the token's deployer?)`
           : '';
-      await repo.finishCycle(id, {
-        status: 'skipped',
-        note: `pending fees below trigger: ${+pending.weth.toFixed(9)} WETH < ${config.claimTriggerEth}${authNote}`,
-      });
-      log(`skipped: pending ${+pending.weth.toFixed(9)} < ${config.claimTriggerEth} WETH trigger`);
+      const note =
+        config.triggerMode === 'accumulation'
+          ? `pending fees below trigger: ${+pending.weth.toFixed(9)} WETH < ${config.claimTriggerEth}${authNote}`
+          : `nothing pending to claim${authNote}`;
+      await repo.finishCycle(id, { status: 'skipped', note });
+      log(`skipped: ${note}`);
       return repo.getCycleWithSteps(id);
     }
 

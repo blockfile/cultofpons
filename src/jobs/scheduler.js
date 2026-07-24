@@ -47,14 +47,19 @@ async function pollOnce(trigger) {
     const claimableUsd = price == null ? null : +(pending.weth * price).toFixed(2);
     state.lastClaimableUsd = claimableUsd;
 
-    // Wait until a claim is worth the gas: pending WETH must reach the trigger.
-    if (pending.weth < config.claimTriggerEth) {
-      return {
-        ran: false,
-        claimable: pending.weth,
-        claimableUsd,
-        reason: `pending fees below trigger (${+pending.weth.toFixed(9)} < ${config.claimTriggerEth} WETH)`,
-      };
+    // Gate the cycle. In 'interval' mode we claim whatever has accrued each tick
+    // (skip only when nothing is pending); in 'accumulation' mode we wait until
+    // the pending WETH reaches the trigger so a claim is worth the gas.
+    const belowTrigger =
+      config.triggerMode === 'accumulation'
+        ? pending.weth < config.claimTriggerEth
+        : pending.weth <= 0;
+    if (belowTrigger) {
+      const reason =
+        config.triggerMode === 'accumulation'
+          ? `pending fees below trigger (${+pending.weth.toFixed(9)} < ${config.claimTriggerEth} WETH)`
+          : 'nothing pending to claim';
+      return { ran: false, claimable: pending.weth, claimableUsd, reason };
     }
 
     state.lastRunAt = new Date().toISOString();
@@ -75,8 +80,12 @@ function start() {
   state.task = cron.schedule(config.pollSchedule, () => {
     pollOnce('poll').catch((err) => console.error('[scheduler] poll error:', err));
   });
+  const gate =
+    config.triggerMode === 'accumulation'
+      ? `once ${config.claimTriggerEth} WETH of fees is pending`
+      : 'whatever fees have accrued';
   console.log(
-    `[scheduler] started — claims + burns every ${config.claimTriggerEth} WETH of fees on schedule "${config.pollSchedule}" (dryRun=${config.dryRun})`
+    `[scheduler] started — claims ${gate} on schedule "${config.pollSchedule}" (mode=${config.triggerMode}, dryRun=${config.dryRun})`
   );
 }
 

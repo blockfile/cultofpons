@@ -61,23 +61,45 @@ test('runCycle (DRY_RUN): claim → burn → buyback + airdrop to holders', asyn
   }
 });
 
-test('runCycle (DRY_RUN): pending fees below the trigger → skipped', async () => {
+test('runCycle (DRY_RUN, interval): any pending fee fires a cycle, even below 0.01', async () => {
   delete require.cache[require.resolve('../config')];
   const mongod = await MongoMemoryServer.create();
   process.env.MONGODB_URI = mongod.getUri();
-  process.env.MONGODB_DB = 'bop_test_skip';
+  process.env.MONGODB_DB = 'bop_test_interval';
   const db = require('../db/index');
-  const simvault = require('../evm/simvault');
   const { runCycle } = require('./cycle');
+  const simvault = require('../evm/simvault');
   await db.connect();
   try {
-    simvault.reset({ pendingWeth: 0.0005, pendingTokens: 50 }); // below the 0.01 trigger
+    // Well below the 0.01 accumulation trigger — interval mode claims it anyway.
+    simvault.reset({ pendingWeth: 0.0005, pendingTokens: 50 });
+    const cycle = await runCycle();
+    assert.strictEqual(cycle.status, 'complete');
+    assert.deepStrictEqual(cycle.steps.map((s) => s.name), ['claim', 'burn', 'buy', 'airdrop']);
+    assert.strictEqual(cycle.eth_claimed, 0.0005);
+    assert.strictEqual(cycle.tokens_burned, 50);
+    assert.strictEqual(cycle.eth_spent_buy, 0.0004); // 80% of 0.0005
+  } finally {
+    await db.close();
+    await mongod.stop();
+  }
+});
+
+test('runCycle (DRY_RUN, interval): nothing pending → skipped', async () => {
+  delete require.cache[require.resolve('../config')];
+  const mongod = await MongoMemoryServer.create();
+  process.env.MONGODB_URI = mongod.getUri();
+  process.env.MONGODB_DB = 'bop_test_nothing';
+  const db = require('../db/index');
+  const { runCycle } = require('./cycle');
+  const simvault = require('../evm/simvault');
+  await db.connect();
+  try {
+    simvault.reset(); // 0 pending
     const cycle = await runCycle();
     assert.strictEqual(cycle.status, 'skipped');
     assert.ok(!cycle.steps.some((s) => s.name === 'claim'));
-    assert.ok(!cycle.steps.some((s) => s.name === 'burn'));
-    assert.ok(!cycle.steps.some((s) => s.name === 'buy'));
-    assert.strictEqual(simvault.peek().pendingWeth, 0.0005, 'fees stay in the locker for later');
+    assert.match(cycle.note, /nothing pending/);
   } finally {
     await db.close();
     await mongod.stop();

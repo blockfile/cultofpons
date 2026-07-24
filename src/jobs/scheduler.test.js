@@ -7,6 +7,7 @@ test('pollOnce: waits below the trigger, claims + burns when pending fees reach 
   process.env.DRY_RUN = 'true';
   process.env.TOKEN_ADDRESS = '0x00000000000000000000000000000000000b0b01';
   process.env.REWARD_TOKEN = '0x00000000000000000000000000000000000d0d0d';
+  process.env.TRIGGER_MODE = 'accumulation'; // this test exercises the CLAIM_TRIGGER_ETH gate
   process.env.DRY_RUN_FEE_PER_POLL = '0'; // no auto-accrual — we control the fee state
   process.env.DRY_RUN_TOKEN_FEE_PER_POLL = '0';
   delete require.cache[require.resolve('../config')];
@@ -54,6 +55,7 @@ test('pollOnce: waits below the trigger, claims + burns when pending fees reach 
     await mongod.stop();
     delete process.env.DRY_RUN_FEE_PER_POLL;
     delete process.env.DRY_RUN_TOKEN_FEE_PER_POLL;
+    delete process.env.TRIGGER_MODE;
     delete require.cache[require.resolve('../config')];
   }
 });
