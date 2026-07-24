@@ -1,0 +1,4 @@
+# Shell scripts and nginx configs run on Linux — force LF so a Windows checkout
+# can't inject CRLF (a CRLF shebang breaks `curl … | bash`).
+*.sh text eol=lf
+*.conf text eol=lf
