@@ -17,6 +17,8 @@ const { config, provider, wallet, hr } = require('./_util');
   console.log('deadAddr   :', config.deadAddress, '(burn sink)');
   console.log('locker     :', config.locker || 'auto — discovered from the token\'s launchFactory()', '(PonsLaunchLocker — collectFees claims the creator fees)');
   console.log('weth       :', config.weth);
+  console.log('buyback    :', `${config.rewardBuyPct}% of each claim → buy ${config.rewardSymbol} (${config.rewardToken || '⚠️ set REWARD_TOKEN'}) and airdrop to holders ≥ ${config.minHold}`);
+  console.log('disperse   :', config.disperseAddress || 'off — pipelined per-transfer sends', `(batch ${config.airdropBatchSize})`);
 
   hr('RPC + WALLET BALANCES');
   const net = await provider.getNetwork();
@@ -60,7 +62,7 @@ const { config, provider, wallet, hr } = require('./_util');
 
   hr('CREATOR FEES');
   const wethBal = await getWethBalanceEth();
-  console.log('wallet WETH:', wethBal, '(claimed dev income — never spent by the loop)');
+  console.log('wallet WETH:', wethBal, `(${config.rewardBuyPct}% of each claim funds the buyback; the rest is dev income)`);
   const pending = await getPendingCreatorFees();
   if (pending.authorized) {
     console.log('pending    :', pending.weth, 'WETH +', pending.tokens, `${config.tokenSymbol} claimable from the locker`);

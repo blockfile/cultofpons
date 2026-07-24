@@ -26,7 +26,11 @@ async function createCycle({ dryRun }) {
     started_at: new Date().toISOString(),
     finished_at: null,
     eth_claimed: null,
+    eth_spent_buy: null,
+    tokens_bought: null,
     tokens_burned: null,
+    eligible_holders: null,
+    total_holders: null,
     burn_sig: null,
     dry_run: dryRun ? 1 : 0,
     note: null,
@@ -42,7 +46,11 @@ async function finishCycle(id, fields) {
     'status',
     'mode',
     'eth_claimed',
+    'eth_spent_buy',
+    'tokens_bought',
     'tokens_burned',
+    'eligible_holders',
+    'total_holders',
     'burn_sig',
     'note',
     'error',
@@ -125,6 +133,8 @@ async function getStats() {
           completed: { $sum: { $cond: [{ $eq: ['$status', 'complete'] }, 1, 0] } },
           failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
           skipped: { $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] } },
+          total_eth_spent_buy: { $sum: { $ifNull: ['$eth_spent_buy', 0] } },
+          total_tokens_bought: { $sum: { $ifNull: ['$tokens_bought', 0] } },
           total_tokens_burned: { $sum: { $ifNull: ['$tokens_burned', 0] } },
         },
       },
@@ -142,8 +152,9 @@ async function getStats() {
     ])
     .toArray();
 
-  // Number of successful burns performed.
+  // Number of successful burns and reward buys performed.
   const burns = await db.collection('steps').countDocuments({ name: 'burn', status: 'ok' });
+  const buys = await db.collection('steps').countDocuments({ name: 'buy', status: 'ok' });
 
   return {
     ...(row || {
@@ -151,11 +162,87 @@ async function getStats() {
       completed: 0,
       failed: 0,
       skipped: 0,
+      total_eth_spent_buy: 0,
+      total_tokens_bought: 0,
       total_tokens_burned: 0,
     }),
     total_eth_claimed: claimRow ? claimRow.eth : 0,
     burns,
+    buys,
   };
+}
+
+/**
+ * The eligible-holder count from the most recent cycle that recorded one — i.e.
+ * the CURRENT number of wallets ≥ MIN_HOLD (each cycle re-snapshots, so this
+ * drops as wallets become ineligible). Null if no cycle has snapshotted yet.
+ */
+async function getLatestEligibleHolders() {
+  const db = getDb();
+  const row = await db
+    .collection('cycles')
+    .find({ eligible_holders: { $ne: null } }, { projection: { eligible_holders: 1, _id: 0 } })
+    .sort({ id: -1 })
+    .limit(1)
+    .next();
+  return row ? row.eligible_holders : null;
+}
+
+async function addAirdrop({ cycleId, rewardToken, recipient, amountRaw, amountUi, signature, status }) {
+  const db = getDb();
+  const id = await nextId('airdrops');
+  const doc = {
+    id,
+    cycle_id: cycleId,
+    reward_token: rewardToken,
+    recipient,
+    amount_raw: String(amountRaw),
+    amount_ui: amountUi ?? null,
+    signature: signature ?? null,
+    status: status ?? 'ok',
+    created_at: new Date().toISOString(),
+  };
+  await db.collection('airdrops').insertOne(doc);
+  bus.emit('airdrop', doc); // push to SSE clients
+  return id;
+}
+
+async function getAirdrops(limit, offset, rewardToken = null) {
+  const db = getDb();
+  const filter = rewardToken ? { reward_token: rewardToken } : {};
+  const total = await db.collection('airdrops').countDocuments(filter);
+  const items = await db
+    .collection('airdrops')
+    .find(filter, NO_ID)
+    .sort({ id: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray();
+  return { total, items };
+}
+
+// Aggregate successful airdrop sends PER reward token: send count, total UI
+// amount distributed, and distinct recipient wallets. Keyed by reward_token.
+async function getAirdropTotals() {
+  const db = getDb();
+  const rows = await db
+    .collection('airdrops')
+    .aggregate([
+      { $match: { status: 'ok' } },
+      {
+        $group: {
+          _id: '$reward_token',
+          sends: { $sum: 1 },
+          totalUi: { $sum: { $ifNull: ['$amount_ui', 0] } },
+          recipients: { $addToSet: '$recipient' },
+        },
+      },
+      { $project: { _id: 1, sends: 1, totalUi: 1, holders: { $size: '$recipients' } } },
+    ])
+    .toArray();
+  const byToken = {};
+  for (const r of rows) byToken[r._id] = { sends: r.sends, totalUi: r.totalUi, holders: r.holders };
+  return byToken;
 }
 
 module.exports = {
@@ -167,4 +254,8 @@ module.exports = {
   getLastCycle,
   getAllSteps,
   getStats,
+  getLatestEligibleHolders,
+  addAirdrop,
+  getAirdrops,
+  getAirdropTotals,
 };

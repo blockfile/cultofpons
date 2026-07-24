@@ -38,6 +38,19 @@ router.get('/cycles/:id', async (req, res, next) => {
   }
 });
 
+// GET /api/airdrops?limit=&offset=&token=  — paginated reward-airdrop payouts
+router.get('/airdrops', async (req, res, next) => {
+  try {
+    const limit = clamp(req.query.limit, 50, 1, 500);
+    const offset = clamp(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+    const token = req.query.token ? String(req.query.token).toLowerCase() : null;
+    const { total, items } = await repo.getAirdrops(limit, offset, token);
+    res.json({ total, limit, offset, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/transactions?limit=&offset=  — enriched activity feed for the dashboard table
 router.get('/transactions', async (req, res, next) => {
   try {

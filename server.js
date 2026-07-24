@@ -37,7 +37,7 @@ app.get('/', (req, res) => {
   res.json({
     name: 'bop',
     description:
-      'ponsfamily.com creator fees (locked-LP WETH + token) → claim from the locker → burn the claimed tokens, keep the WETH (Robinhood Chain)',
+      'ponsfamily.com creator fees (locked-LP WETH + token) → claim from the locker → burn the claimed tokens → buy the reward token with a share of the WETH and airdrop it to holders (Robinhood Chain)',
     dryRun: config.dryRun,
     chainId: config.chainId,
     wallet: walletAddress(),
@@ -52,6 +52,7 @@ app.get('/', (req, res) => {
       'GET  /api/stream (SSE live push)',
       'GET  /api/cycles',
       'GET  /api/cycles/:id',
+      'GET  /api/airdrops',
       'GET  /api/transactions',
       'POST /api/run',
       'POST /api/pause',

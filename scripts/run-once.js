@@ -1,7 +1,8 @@
 'use strict';
 
 // Run ONE full cycle (claim creator fees → burn the wallet's whole token
-// balance; the claimed WETH stays) and record it. The integration test.
+// balance → buy the reward token with REWARD_BUY_PCT of the WETH and airdrop it
+// to holders; the rest of the WETH stays) and record it. The integration test.
 //   node scripts/run-once.js [--confirm]
 const { requireConfirm, hr } = require('./_util');
 const db = require('../src/db');
@@ -9,7 +10,7 @@ const { runCycle } = require('../src/jobs/cycle');
 
 (async () => {
   hr('RUN ONE FULL CYCLE');
-  if (!(await requireConfirm('run one full cycle (claim → burn)'))) {
+  if (!(await requireConfirm('run one full cycle (claim → burn → buyback + airdrop)'))) {
     process.exit(0);
   }
   await db.connect();

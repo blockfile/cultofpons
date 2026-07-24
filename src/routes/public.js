@@ -44,16 +44,20 @@ const loadActivity = cached(3000, async () => {
 });
 
 const loadStats = cached(15000, async () => {
-  const [stats, unclaimed, market] = await Promise.all([
+  const [stats, unclaimed, market, airdropTotals, eligibleHolders] = await Promise.all([
     repo.getStats(),
     getUnclaimedEth().catch(() => ({ eth: null })),
     getMarketData().catch(() => ({ tokenInLp: null, marketCap: null })),
+    repo.getAirdropTotals().catch(() => ({})),
+    repo.getLatestEligibleHolders().catch(() => null),
   ]);
   return toPublicStats({
     stats,
     unclaimedEth: unclaimed.eth,
     operatingWallet: walletAddress(),
     market,
+    airdropTotals,
+    eligibleHolders,
   });
 });
 
@@ -86,12 +90,14 @@ router.get('/countdown', (req, res) => {
 
 // Headline numbers for the frontend hero.
 const loadSummary = cached(10000, async () => {
-  const [stats, price, market] = await Promise.all([
+  const [stats, price, market, airdropTotals, eligibleHolders] = await Promise.all([
     repo.getStats(),
     getEthPriceUsd().catch(() => 0),
     getMarketData().catch(() => ({ marketCap: null })),
+    repo.getAirdropTotals().catch(() => ({})),
+    repo.getLatestEligibleHolders().catch(() => null),
   ]);
-  return toPublicSummary({ stats, price, marketCapUsd: market.marketCap ?? null });
+  return toPublicSummary({ stats, price, marketCapUsd: market.marketCap ?? null, airdropTotals, eligibleHolders });
 });
 
 // GET /summary — hero headline stats.

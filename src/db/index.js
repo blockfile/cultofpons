@@ -20,6 +20,9 @@ async function connect() {
     db.collection('cycles').createIndex({ id: 1 }, { unique: true }),
     db.collection('steps').createIndex({ id: 1 }, { unique: true }),
     db.collection('steps').createIndex({ cycle_id: 1 }),
+    db.collection('airdrops').createIndex({ id: 1 }, { unique: true }),
+    db.collection('airdrops').createIndex({ cycle_id: 1 }),
+    db.collection('airdrops').createIndex({ reward_token: 1 }),
   ]);
 
   return db;

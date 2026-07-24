@@ -48,6 +48,16 @@ test('toPublicActivityRow maps buy + burn steps', () => {
   assert.strictEqual(burn.tokens, 500);
 });
 
+test('toActivityRow maps an airdrop step', () => {
+  const air = toActivityRow(
+    { name: 'airdrop', detail: { symbol: 'PONS', recipients: 12, sent: 12, failed: 0 }, created_at: 'x' },
+    100
+  );
+  assert.strictEqual(air.type, 'Airdrop');
+  assert.strictEqual(air.status, 'Airdropped');
+  assert.strictEqual(air.tokens, 12); // recipients paid
+});
+
 test('toPublicStats emits the flat frontend stats object', () => {
   const out = toPublicStats({
     stats: { total_eth_claimed: 12, total_tokens_burned: 1000, burns: 6 },
@@ -68,6 +78,23 @@ test('toPublicStats emits the flat frontend stats object', () => {
   // SoftieClone-style aliases stay in sync.
   assert.strictEqual(out.buybackEth, 0.5);
   assert.strictEqual(out.buybackTarget, 0.01);
+});
+
+test('toPublicStats surfaces the buyback + airdrop totals', () => {
+  const out = toPublicStats({
+    stats: { total_eth_claimed: 12, total_eth_spent_buy: 0.8, total_tokens_bought: 50000 },
+    unclaimedEth: 0,
+    operatingWallet: '0xwallet',
+    airdropTotals: { '0xpons': { sends: 40, totalUi: 49000, holders: 40 } },
+    eligibleHolders: 42,
+    rewardSymbol: 'PONS',
+  });
+  assert.strictEqual(out.totalRewardSpentEth, 0.8);
+  assert.strictEqual(out.totalRewardBought, 50000);
+  assert.strictEqual(out.totalAirdropped, 49000);
+  assert.strictEqual(out.airdropSends, 40);
+  assert.strictEqual(out.eligibleHolders, 42);
+  assert.strictEqual(out.rewardSymbol, 'PONS');
 });
 
 test('toPublicSummary reports claimed fees and burned totals', () => {

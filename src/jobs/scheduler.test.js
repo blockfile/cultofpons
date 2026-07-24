@@ -6,6 +6,7 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 test('pollOnce: waits below the trigger, claims + burns when pending fees reach it', async () => {
   process.env.DRY_RUN = 'true';
   process.env.TOKEN_ADDRESS = '0x00000000000000000000000000000000000b0b01';
+  process.env.REWARD_TOKEN = '0x00000000000000000000000000000000000d0d0d';
   process.env.DRY_RUN_FEE_PER_POLL = '0'; // no auto-accrual — we control the fee state
   process.env.DRY_RUN_TOKEN_FEE_PER_POLL = '0';
   delete require.cache[require.resolve('../config')];
@@ -36,16 +37,18 @@ test('pollOnce: waits below the trigger, claims + burns when pending fees reach 
     assert.match(p2.reason, /below trigger/);
     assert.strictEqual((await repo.getCycles(10, 0)).total, 0, 'no cycle below the trigger');
 
-    // Trigger reached → the tick claims and burns the token side.
+    // Trigger reached → the tick claims, burns the token side, then buys the
+    // reward token and airdrops it to holders.
     simvault.reset({ pendingWeth: 0.05, pendingTokens: 500 });
     const p3 = await scheduler.pollOnce('poll');
     assert.strictEqual(p3.ran, true);
     assert.strictEqual(p3.cycle.status, 'complete');
-    assert.deepStrictEqual(p3.cycle.steps.map((s) => s.name), ['claim', 'burn']);
+    assert.deepStrictEqual(p3.cycle.steps.map((s) => s.name), ['claim', 'burn', 'buy', 'airdrop']);
     assert.strictEqual((await repo.getCycles(10, 0)).total, 1, 'one cycle once the trigger is hit');
 
-    // The claimed WETH stays with the wallet — never re-enters the loop.
-    assert.strictEqual(simvault.peek().walletWeth, 0.05, 'claimed WETH kept as dev income');
+    // 80% of the claim funded the buyback + holder airdrop; the rest is the dev cut.
+    assert.strictEqual(p3.cycle.eth_spent_buy, 0.04);
+    assert.ok(p3.cycle.tokens_bought > 0, 'bought reward tokens for the airdrop');
   } finally {
     await db.close();
     await mongod.stop();

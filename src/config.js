@@ -17,6 +17,15 @@ function num(value, fallback) {
 
 const DRY_RUN = bool(process.env.DRY_RUN, true);
 
+// ── Reward split (of each WETH claim) ────────────────────────────────────────
+// REWARD_BUY_PCT of each claim buys the reward token and airdrops it to holders;
+// the remainder (dev cut) stays in the wallet as WETH (gas tops up from it).
+const rewardBuyPct = num(process.env.REWARD_BUY_PCT, 80);
+if (rewardBuyPct < 0 || rewardBuyPct > 100) {
+  throw new Error(`invalid split: REWARD_BUY_PCT(${rewardBuyPct}) must be within [0, 100]`);
+}
+const devPct = +(100 - rewardBuyPct).toFixed(6);
+
 /**
  * Load the signing wallet (0x-prefixed hex private key). It MUST be the wallet
  * that DEPLOYED the token on ponsfamily.com — the locker only lets the token's
@@ -72,6 +81,32 @@ const config = {
   // stays with the wallet.
   tokenAddress: lowerOrNull(process.env.TOKEN_ADDRESS),
   tokenSymbol: process.env.TOKEN_SYMBOL || 'BOP',
+
+  // ── Buyback + airdrop (Uniswap V3) ───────────────────────────────────────
+  // After the token-side fees are burned, REWARD_BUY_PCT of each WETH claim buys
+  // this REWARD_TOKEN on its V3 pool (via SWAP_ROUTER at REWARD_POOL_FEE) and
+  // airdrops it pro-rata to the launched token's holders. The buy spends WETH
+  // directly (no unwrap); the amount received is measured from the balance delta.
+  swapRouter: lowerOrNull(process.env.SWAP_ROUTER) || '0xcaf681a66d020601342297493863e78c959e5cb2',
+  rewardToken: lowerOrNull(process.env.REWARD_TOKEN),
+  rewardSymbol: process.env.REWARD_SYMBOL || 'PONS',
+  rewardPoolFee: num(process.env.REWARD_POOL_FEE, 10000),
+  rewardBuyPct, // % of each claim → buyback + airdrop (rest = dev, kept as WETH)
+  devPct,
+  slippagePct: num(process.env.SLIPPAGE_PCT, 5), // buyback (WETH→reward) slippage, percent
+
+  // ── Airdrop (reward token → launched-token holders) ──────────────────────
+  minHold: num(process.env.MIN_HOLD, 100000), // min launched-token balance to qualify
+  // The verified Disperse contract on Robinhood Chain — one disperseToken tx pays a
+  // whole batch of recipients. Blank it to fall back to pipelined ERC-20 transfers.
+  disperseAddress: lowerOrNull(process.env.DISPERSE_ADDRESS) || '0xddb6a9b9e2d6c5636b444c0cda907c9944c6cec7',
+  airdropBatchSize: num(process.env.AIRDROP_BATCH_SIZE, 300), // recipients per disperse tx / max pipelined in flight
+  airdropGasLimit: num(process.env.AIRDROP_GAS_LIMIT, 120000), // fixed gas per pipelined transfer
+  // Extra owner addresses excluded from airdrops (treasury, CEX, etc.), comma-separated.
+  airdropExclude: (process.env.AIRDROP_EXCLUDE || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 
   // ── Claim → burn loop ────────────────────────────────────────────────────
   // Every POLL_SCHEDULE, once the creator WETH pending in the locker reaches

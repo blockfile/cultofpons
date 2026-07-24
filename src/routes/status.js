@@ -17,12 +17,15 @@ const TOKEN_SYMBOL = process.env.TOKEN_SYMBOL || 'TOKEN';
 // live unclaimed fees, scheduler state, and the last cycle.
 router.get('/status', async (req, res, next) => {
   try {
-    const [stats, lastCycle, unclaimed, price] = await Promise.all([
+    const [stats, lastCycle, unclaimed, price, airdropTotals, eligibleHolders] = await Promise.all([
       repo.getStats(),
       repo.getLastCycle(),
       getUnclaimedEth().catch(() => ({ eth: null, at: Date.now() })),
       getEthPriceUsd(),
+      repo.getAirdropTotals().catch(() => ({})),
+      repo.getLatestEligibleHolders().catch(() => null),
     ]);
+    const totalAirdropped = Object.values(airdropTotals).reduce((s, t) => s + (t.totalUi || 0), 0);
 
     let ethBalance = null;
     let balanceSource = 'none';
@@ -59,11 +62,21 @@ router.get('/status', async (req, res, next) => {
       token: {
         address: config.tokenAddress,
       },
-      // Claim-and-burn loop parameters.
+      // Buyback + airdrop wiring.
+      reward: {
+        token: config.rewardToken,
+        symbol: config.rewardSymbol,
+        buyPct: config.rewardBuyPct,
+        minHold: config.minHold,
+        disperseAddress: config.disperseAddress,
+        eligibleHolders,
+      },
+      // Claim → burn → buyback loop parameters.
       config: {
         pollSchedule: config.pollSchedule,
         claimTriggerEth: config.claimTriggerEth,
         deadAddress: config.deadAddress,
+        rewardBuyPct: config.rewardBuyPct,
       },
       totals: {
         cycles: stats.cycles,
@@ -73,6 +86,10 @@ router.get('/status', async (req, res, next) => {
         ethClaimed: stats.total_eth_claimed,
         tokensBurned: stats.total_tokens_burned || 0,
         burns: stats.burns || 0,
+        buys: stats.buys || 0,
+        ethSpentBuy: stats.total_eth_spent_buy || 0,
+        rewardBought: stats.total_tokens_bought || 0,
+        airdropped: totalAirdropped,
       },
       scheduler: scheduler.getState(),
       lastCycle,

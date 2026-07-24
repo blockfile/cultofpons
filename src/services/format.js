@@ -31,6 +31,11 @@ function toActivityRow(s, price) {
       tokens = d.tokensBurned ?? null;
       status = 'Burned';
       break;
+    case 'airdrop':
+      type = 'Airdrop';
+      tokens = d.sent ?? null; // recipients paid this cycle
+      status = 'Airdropped';
+      break;
     default:
       type = s.name;
   }
@@ -57,6 +62,7 @@ const PUBLIC_TYPE = {
   claim: 'claim',
   buy: 'buy',
   burn: 'burn',
+  airdrop: 'airdrop',
 };
 
 // Map a stored step to the ActivityRow shape the frontend table renders.
@@ -79,6 +85,10 @@ function toPublicActivityRow(s, price) {
     case 'burn':
       tokens = d.tokensBurned ?? null;
       status = 'burned';
+      break;
+    case 'airdrop':
+      tokens = d.sent ?? null; // recipients paid this cycle
+      status = 'airdropped';
       break;
     default:
       break;
@@ -105,8 +115,11 @@ function toPublicActivityRow(s, price) {
 // buybackTarget }; bop has no buyback, so those last two are kept as ALIASES of
 // the honest fields (pendingEth / burnTriggerEth) — the progress bar then shows
 // fees accruing toward the next claim+burn.
-function toPublicStats({ stats, unclaimedEth, operatingWallet, market = {} }) {
+function toPublicStats({ stats, unclaimedEth, operatingWallet, market = {}, airdropTotals = {}, eligibleHolders = null, rewardSymbol = null }) {
   const pendingEth = unclaimedEth == null ? 0 : +unclaimedEth.toFixed(9);
+  const air = Object.values(airdropTotals);
+  const totalAirdropped = air.reduce((s, t) => s + (t.totalUi || 0), 0);
+  const airdropSends = air.reduce((s, t) => s + (t.sends || 0), 0);
   return {
     tokenInLp: market.tokenInLp ?? null, // tokens in the LP (DexScreener); null until listed
     marketCap: market.marketCap ?? null, // USD market cap (DexScreener); null until listed
@@ -121,7 +134,14 @@ function toPublicStats({ stats, unclaimedEth, operatingWallet, market = {} }) {
     totalCreatorFeesClaimed: stats.total_eth_claimed,
     tokensBurned: stats.total_tokens_burned || 0,
     burns: stats.burns || 0,
-    // The signer that performs claim/burn.
+    // Buyback + airdrop totals.
+    rewardSymbol: rewardSymbol ?? config.rewardSymbol,
+    totalRewardSpentEth: stats.total_eth_spent_buy || 0, // WETH spent buying the reward token
+    totalRewardBought: stats.total_tokens_bought || 0, // reward tokens bought
+    totalAirdropped, // reward tokens sent to holders
+    airdropSends, // successful airdrop payouts
+    eligibleHolders, // current wallets ≥ MIN_HOLD (latest snapshot)
+    // The signer that performs claim/burn/buyback.
     operatingWallet: operatingWallet ?? null,
   };
 }
@@ -140,8 +160,9 @@ function buildUnclaimedPayload(eth, price) {
 }
 
 // Headline numbers for the frontend hero.
-function toPublicSummary({ stats, price, marketCapUsd = null }) {
+function toPublicSummary({ stats, price, marketCapUsd = null, airdropTotals = {}, eligibleHolders = null }) {
   const claimedEth = stats.total_eth_claimed || 0;
+  const totalAirdropped = Object.values(airdropTotals).reduce((s, t) => s + (t.totalUi || 0), 0);
   return {
     creatorFeesClaimedEth: claimedEth,
     creatorFeesClaimedUsd: +(claimedEth * (price || 0)).toFixed(2),
@@ -150,6 +171,11 @@ function toPublicSummary({ stats, price, marketCapUsd = null }) {
     tokensBurned: stats.total_tokens_burned || 0,
     burns: stats.burns || 0,
     cycles: stats.completed || 0,
+    // buyback + airdrop totals
+    rewardSymbol: config.rewardSymbol,
+    rewardTokensBought: stats.total_tokens_bought || 0,
+    tokensAirdropped: totalAirdropped,
+    eligibleHolders,
   };
 }
 
